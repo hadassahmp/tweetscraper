@@ -21,6 +21,7 @@ def twitter_scraper():
     username = input("Enter your Twitter username: ")
     password = input("Enter your Twitter password: ")
     profile_url = input("Enter the full URL of the Twitter profile you want to scrape: ")
+    tweets_data = None  # Initialize to avoid UnboundLocalError
 
     # --- 2. Initialize Selenium WebDriver ---
     # Using Chrome as the browser. You will need to have chromedriver installed.
@@ -93,16 +94,29 @@ def twitter_scraper():
         # --- 6. Extract Information from Each Tweet ---
         for tweet in tweets:
             try:
-                # Extract author name
-                author = tweet.find_element(By.XPATH, './/div[@data-testid="User-Names"]//span').text
+                # Extract author name (display name)
+                try:
+                    author = tweet.find_element(By.XPATH, './/div[@data-testid="User-Names"]//span').text
+                except Exception:
+                    author = tweet.find_element(By.XPATH, './/div[@role="heading"]/span').text
+
+                # Extract username (handle)
+                try:
+                    username_elem = tweet.find_element(By.XPATH, './/div[@data-testid="User-Name"]//div[contains(@dir, "ltr") and contains(text(), "@")]')
+                    user_handle = username_elem.text
+                except Exception:
+                    user_handle = ""
 
                 # Extract timestamp
                 timestamp = tweet.find_element(By.XPATH, './/time').get_attribute('datetime')
 
                 # Extract tweet text
-                tweet_text_element = tweet.find_element(By.XPATH, './/div[@data-testid="tweetText"]')
-                tweet_text = tweet_text_element.text
-                
+                try:
+                    tweet_text_element = tweet.find_element(By.XPATH, './/div[@data-testid="tweetText"]')
+                    tweet_text = tweet_text_element.text
+                except Exception:
+                    tweet_text = ""
+
                 # Extract image URLs if any
                 images = []
                 image_elements = tweet.find_elements(By.XPATH, './/div[@data-testid="tweetPhoto"]//img')
@@ -111,14 +125,14 @@ def twitter_scraper():
 
                 tweets_data.append({
                     "author": author,
+                    "username": user_handle,
                     "timestamp": timestamp,
                     "text": tweet_text,
-                    "images": ", ".join(images) # Join multiple image URLs
+                    "images": ", ".join(images)
                 })
-
             except Exception as e:
                 print(f"Error scraping a tweet: {e}")
-                continue # Move to the next tweet
+                continue
 
     finally:
         # --- 7. Save to CSV and Quit ---
@@ -126,14 +140,12 @@ def twitter_scraper():
             # Define CSV file name based on the profile
             profile_name = profile_url.split("/")[-1]
             filename = f'{profile_name}_tweets.csv'
-
             print(f"Saving tweets to {filename}")
             with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=["author", "timestamp", "text", "images"])
+                writer = csv.DictWriter(f, fieldnames=["author", "username", "timestamp", "text", "images"])
                 writer.writeheader()
                 writer.writerows(tweets_data)
             print("Scraping complete!")
-
         # Close the browser
         driver.quit()
 
